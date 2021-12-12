@@ -18,61 +18,8 @@ BUSI_LABELS = ["malignant", "benign"] # BUSI dataset labels: https://bcdr.eu/inf
 BIRD_LABELS =  ['003.Sooty_Albatross', '014.Indigo_Bunting', '067.Anna_Hummingbird', '102.Western_Wood_Pewee', '112.Great_Grey_Shrike', '122.Harris_Sparrow', '188.Pileated_Woodpecker', '194.Cactus_Wren'] 
 
 
-class BUSI_dataset(Dataset):
-    def __init__(self, csv_file, transform=None, mask=False, mask_transform=None, mask_dilute=15):
-        """
-        csv_file: csv file containing image file path and corresponding label
-        transform: transform for image
-        mask: return mask or not
-        mask_transform: transformation for mask
-        mask_dilute: dilute mask with given distance in all directions
-        """
-        df = pd.read_csv(csv_file, sep=",", header=None)
-        df.columns = ["img", "label"]
-        self._img_files = df["img"].tolist()
-        self._img_labels = df["label"].tolist()
-        self._transform = transform
-        self._mask = mask
-        self._mask_transform = mask_transform
-        self._mask_dilute = mask_dilute
-
-    def __len__(self):
-        return len(self._img_files)
-
-    def __getitem__(self, idx):
-        image_name = self._img_files[idx]
-        assert os.path.exists(image_name), "Image file not found!"
-        # load image
-        img = Image.open(image_name)
-        img = img.convert("RGB")
-        label = self._img_labels[idx]
-        label_id = BUSI_LABELS.index(label)
-        #onehot_id = torch.nn.functional.one_hot(torch.Tensor(label_id), len(LABELS))
-        # get the identical random seed for both image and mask
-        seed = random.randint(0, 2147483647)
-        if self._transform:
-            # state = torch.get_rng_state()
-            random.seed(seed)
-            torch.manual_seed(seed)
-            img = self._transform(img)
-        # load mask
-        mask = []
-        if self._mask:
-            mask = get_image_mask(image_name, dataset="BUSI")
-            mask = dilute_mask(mask, dilute_distance=self._mask_dilute)
-            # assign class label
-            mask = Image.fromarray(mask)
-            if self._mask_transform:
-                random.seed(seed)
-                torch.manual_seed(seed)
-                # torch.set_rng_state(state)
-                mask = self._mask_transform(mask)
-                mask = mask.type(torch.float)
-                # mask = mask * label_id  # normal case is identical to backaground
-        return {"image": img, "label": label_id, "mask": mask}
-
-class BIRD_dataset(Dataset):
-    def __init__(self, csv_file, transform=None, mask_transform=None, mask_dilute=0, image_size=224):
+class MaskDataset(Dataset):
+    def __init__(self, csv_file, dataset_name="BIRD", transform=None, mask_transform=None, mask_dilute=0, image_size=224):
         """
         csv_file: csv file containing image file path and corresponding label
         transform: transform for image
@@ -88,6 +35,13 @@ class BIRD_dataset(Dataset):
         self._mask_transform = mask_transform
         self._mask_dilute = mask_dilute
         self._img_size = image_size
+        self._dataset_name = dataset_name
+        if dataset_name == "BIRD":
+            self._label = BIRD_LABELS
+        elif dataset_name == "BUSI":
+            self._label = BUSI_LABELS
+        else:
+            print("Unknown dataset name!")
 
     def __len__(self):
         return len(self._img_files)
@@ -99,7 +53,7 @@ class BIRD_dataset(Dataset):
         img = Image.open(image_name)
         img = img.convert("RGB")
         label = self._img_labels[idx]
-        label_id = BIRD_LABELS.index(label)
+        label_id = self._labels.index(label)
         #onehot_id = torch.nn.functional.one_hot(torch.Tensor(label_id), len(LABELS))
         # get the identical random seed for both image and mask
         seed = random.randint(0, 2147483647)
@@ -110,7 +64,7 @@ class BIRD_dataset(Dataset):
             img = self._transform(img)
         # load mask
         if self._img_masks[idx] != "none":
-            mask = get_image_mask(self._img_masks[idx], dataset="BIRD")
+            mask = get_image_mask(self._img_masks[idx], dataset=self._dataset_name)
             mask = dilute_mask(mask, dilute_distance=self._mask_dilute)
             # assign class label
             mask = Image.fromarray(mask)
@@ -182,18 +136,9 @@ def prepare_data(config):
             # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ]), 
     }
-    mask = config.get("mask", None)
-    if config["dataset"] == "BUSI":
-        image_datasets = {x: BUSI_dataset(config[x], 
-                                          transform=data_transforms[x+"_image"], 
-                                          mask=mask, 
-                                          mask_transform=data_transforms[x+"_mask"], 
-                                          mask_dilute=config.get("mask_dilute", 0)) for x in ["train", "test"]}
-    elif config["dataset"] == "BIRD":
-        image_datasets = {x: BIRD_dataset(config[x], transform=data_transforms[x+"_image"],
+    image_datasets = {x: MaskDataset(config[x], dataset_name=config["dataset"], transform=data_transforms[x+"_image"],
                                           mask_transform=data_transforms[x+"_mask"]) for x in ["train", "test"]}
-    else:
-        print("Unknown dataset")
+
     # class_names = image_datasets["train"].classes 
     data_sizes = {x: len(image_datasets[x]) for x in ["train", "test"]}
     return image_datasets, data_sizes
