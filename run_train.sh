@@ -24,9 +24,9 @@ do
                     for num_blocks in "${BLK[@]}"
                     do
                         if [ "$loss" = "l1" ];then
-                            mask_weight=1.0
+                            mask_weight=0.2
                         elif [ "$loss" = "l2" ]; then
-                            mask_weight=2.0
+                            mask_weight=0.1
                         else 
                             mask_weight=0.5
                         fi
