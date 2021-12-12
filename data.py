@@ -16,7 +16,6 @@ from util import get_image_mask, dilute_mask, parse_mayo_mask_box
 
 BUSI_LABELS = ["normal", "malignant", "benign"] # BUSI dataset labels: https://bcdr.eu/information/downloads
 
-# TODO: add gaussian noise or white noise to mask 
 class BUSI_dataset(Dataset):
     def __init__(self, csv_file, transform=None, mask=False, mask_transform=None, mask_dilute=15):
         """
