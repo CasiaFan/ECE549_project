@@ -129,12 +129,11 @@ class MaskAttentionNet2(nn.Module):
     """
     Optimized attention mask with continuous attention blocks which shink the channel from 2048 to 1
     """
-    def __init__(self, num_blocks=4):
+    def __init__(self, num_blocks=4, init_channels=2048):
         """
         reduction: method to reduce C channels into 1, 'mean' or 'max'
         """
         super(MaskAttentionNet2, self).__init__()
-        init_channels = 2048
         channel_list = [init_channels//2**i for i in range(num_blocks)]
         channel_list.append(1)
         att_blocks = []
@@ -179,57 +178,69 @@ class RasaeeUpsampleBlock(nn.Module):
 
 class RasaeeMaskHead(nn.Module):
     """https://arxiv.org/abs/2108.04345"""
-    def __init__(self, image_size=448):
+    def __init__(self, image_size=448, num_blocks=4, init_channels=2048):
         super(RasaeeMaskHead, self).__init__()
         self.image_size = image_size
-        self.block1 = RasaeeUpsampleBlock(2048, 256, 16)
-        self.block2 = RasaeeUpsampleBlock(256, 64, 112)
-        self.block3 = RasaeeUpsampleBlock(64, 1, image_size)
+        if num_blocks == 4:
+            sizes = [16, 48, 144, image_size]
+            channels = [init_channels, init_channels//4, init_channels//16, 16, 1]
+        elif num_blocks == 3:
+            sizes = [16, 64, image_size]
+            channels = [init_channels, init_channels//8, init_channels//64, 1]
+        blocks = []
+        for i in range(num_blocks):
+            blocks.append(RasaeeUpsampleBlock(input_channel=channels[i], output_channel=channels[i+1], output_size=sizes[i]))
+        self.net = nn.Sequential(*blocks)
         self.sig = nn.Sigmoid()
         initialize_weights(self)
     
     def forward(self, x):
-        x = self.block1(x)
-        x = self.block2(x)
-        x = self.block3(x)
+        x = self.net(x)
         x = self.sig(x)
         return x 
 
 class ResNetMask(nn.Module):
     """Resnet with mask attention module"""
     def __init__(self,  
-                 model_name,
-                 num_classes, 
+                 feat_name,
+                 mask_name=None,
+                 num_classes=2, 
                  use_pretrained=True, 
                  num_blocks=3,
                  reduction='mean', 
                  attention_weight=0.5,
                  image_size=448):
         super(ResNetMask, self).__init__()
-        model_info = model_name.split("_")
-        resnet_name = model_info[0]
-        self.attention = model_info[1] == "attention"
         self.attention_weight = attention_weight
-        self.net = LogitResnet(resnet_name, num_classes, return_logit=False, return_feature=True, use_pretrained=use_pretrained)
-        if model_name == "resnet50_attention_mask":
-            # self.mask_module = MaskAttentionNet(reduction=reduction, attention_weight=attention_weight)
-            self.mask_module = MaskAttentionNet2(num_blocks)
-        elif model_name == "resnet50_rasaee_mask":
-            self.mask_module = RasaeeMaskHead(image_size)
-        self.c = ClassificationHead(2048, num_classes)
+        self.net = LogitResnet(feat_name, num_classes, return_logit=False, return_feature=True, use_pretrained=use_pretrained)
+        self.att = False
+        if mask_name in ["mask_attention", "mask_attention2"]:
+            self.att = True
+        if feat_name in ["resnet50"]:
+            init_channels = 2048
+        elif feat_name in ["resnet18", "resnet34"]:
+            init_channels = 512
+        if mask_name == "mask_attention":
+            self.mask_module = MaskAttentionNet(reduction=reduction, attention_weight=attention_weight)
+        elif mask_name == "mask_attention2":
+            self.mask_module = MaskAttentionNet2(num_blocks, init_channels=init_channels)
+        elif mask_name == "mask_rasaee":
+            self.mask_module = RasaeeMaskHead(image_size, num_blocks=num_blocks, init_channels=init_channels)
+        self.c = ClassificationHead(init_channels, num_classes)
 
     def forward(self, x):
         _, x = self.net(x)
         mask = self.mask_module(x)
-        if self.attention:
+        if self.att:
             # x = x + self.attention_weight * mask * x
-            x = x * mask
+            x = x + x * mask
         x = self.c(x)
         return x, mask
 
 
-def get_model(model_name, 
-              num_classes, 
+def get_model(feat_name, 
+              mask_name=None,
+              num_classes=2, 
               use_pretrained=True, 
               return_logit=False, 
               return_feature=False, 
@@ -238,38 +249,36 @@ def get_model(model_name,
               image_size=448,
               num_blocks=3,
               **kwargs):
-    if model_name in ["resnet50", "resnet34", "resnet18"]:
-        model = LogitResnet(model_name, num_classes, return_logit=return_logit, use_pretrained=use_pretrained, return_feature=return_feature)
-    elif model_name == "vgg":
-        model = models.vgg16_bn(pretrained=use_pretrained)
-        in_features = 25088
-        model.classifer = nn.Sequential(
-            nn.Linear(in_features, 4096),
-            nn.ReLU(True),
-            nn.Dropout(),
-            nn.Linear(4096, 4096),
-            nn.ReLU(True),
-            nn.Dropout(),
-            nn.Linear(4096, num_classes),
-        )
-    elif model_name in ["densenet121", "densenet161"]:
-        model = LogitDensenet(model_name, num_classes, return_logit=return_logit, return_feature=return_feature, use_pretrained=use_pretrained)
-    elif model_name == "inception_v3":
-        print("Warning: Inception V3 input size must be larger than 300x300")
-        if use_pretrained:
-            model = models.inception_v3(pretrained=True, aux_logits=False)
-        else:
-            model = models.inception_v3(pretrained=False, num_classes=num_classes, aux_logits=True)
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, num_classes)
-    elif model_name == "deeplabv3":
-        model = DeepLabV3(num_classes=num_classes, pretrained=use_pretrained)
-    elif model_name == "resnet50_attention_mask":
-        model = ResNetMask(model_name, num_classes, use_pretrained=use_pretrained, reduction=reduction, attention_weight=attention_weight, num_blocks=num_blocks)
-    elif model_name == "resnet50_rasaee_mask":
-        model = ResNetMask(model_name, num_classes, use_pretrained=use_pretrained, image_size=image_size)
-    else:
+    if mask_name is None:
+        if feat_name in ["resnet50", "resnet34", "resnet18"]:
+            model = LogitResnet(feat_name, num_classes, return_logit=return_logit, use_pretrained=use_pretrained, return_feature=return_feature)
+        elif feat_name == "vgg":
+            model = models.vgg16_bn(pretrained=use_pretrained)
+            in_features = 25088
+            model.classifer = nn.Sequential(
+                nn.Linear(in_features, 4096),
+                nn.ReLU(True),
+                nn.Dropout(),
+                nn.Linear(4096, 4096),
+                nn.ReLU(True),
+                nn.Dropout(),
+                nn.Linear(4096, num_classes),
+            )
+        elif feat_name in ["densenet121", "densenet161"]:
+            model = LogitDensenet(feat_name, num_classes, return_logit=return_logit, return_feature=return_feature, use_pretrained=use_pretrained)
+        elif feat_name == "inception_v3":
+            print("Warning: Inception V3 input size must be larger than 300x300")
+            if use_pretrained:
+                model = models.inception_v3(pretrained=True, aux_logits=False)
+            else:
+                model = models.inception_v3(pretrained=False, num_classes=num_classes, aux_logits=True)
+            num_features = model.fc.in_features
+            model.fc = nn.Linear(num_features, num_classes)
+        elif feat_name == "deeplabv3":
+            model = DeepLabV3(num_classes=num_classes, pretrained=use_pretrained)
         print("unknown model name!")
+    else:
+        model = ResNetMask(feat_name, mask_name, num_classes=num_classes, use_pretrained=use_pretrained, num_blocks=num_blocks, reduction=reduction, attention_weight=attention_weight, image_size=image_size)
     return model
 
 # def decoder()
@@ -279,7 +288,7 @@ if __name__ == "__main__":
     # inputs = torch.rand(2, 3, 32, 32) 
     # model = get_model("resnet50", 3, use_pretrained=False, return_logit=True)
     # model = models.densenet161(pretrained=False, num_classes=3) 
-    model = get_model("resnet50_attention_mask", 3, use_pretrained=False, return_logit=True, return_feature=True) 
+    model = get_model("resnet18", "mask_rasaee", 3, use_pretrained=False, return_logit=True, return_feature=True) 
     # print(list(model.children())[:-1])
     # model = nn.Sequential(*list(model.children())[:-1])
     res = model(inputs)
@@ -288,6 +297,4 @@ if __name__ == "__main__":
     #     if param.requires_grad == True:
     #         print("\t", name, param.shape)
     # print("-"*10)   
-
-39,2, 4, 35
 

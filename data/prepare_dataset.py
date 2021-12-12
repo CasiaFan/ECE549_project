@@ -17,8 +17,10 @@ def filter_bird_dataset(image_dir, seg_dir, save_dir,
     test_file = os.path.join(save_dir, save_name_prefix+"_test.txt")
     # random select n classes
     if (select_class_name is None) and (select_class_count is not None) and isinstance(select_class_count, int):
+        random.seed(42)
         random.shuffle(class_dirs)
         select_class_name = class_dirs[:select_class_count]
+        print("selected_classes: ", sorted(select_class_name))
     images = []
     for c in select_class_name:
         c_images = glob.glob(os.path.join(image_dir, c, "*.jpg"), recursive=True)
@@ -30,37 +32,41 @@ def filter_bird_dataset(image_dir, seg_dir, save_dir,
     # select 25% images to extract segmentation data
     train_img_count = len(train_images)
     test_img_count = len(test_images)
+    train_labels = [os.path.dirname(x).split("/")[-1] for x in train_images]
+    test_labels = [os.path.dirname(x).split("/")[-1] for x in test_images]
     train_seg_idx = random.sample(list(range(train_img_count)), int(train_img_count * seg_image_ratio))
     test_seg_idx = random.sample(list(range(test_img_count)), int(test_img_count * seg_image_ratio))
     train_segs = ["none" for _ in range(train_img_count)]
     test_segs = ["none" for _ in range(test_img_count)]
-    for idx in train_seg_idx:
+    # for idx in train_seg_idx:
+    for idx in range(train_img_count):
         image_name = os.path.basename(train_images[idx])
-        image_class = os.path.dirname(train_images[idx])
+        image_class = os.path.dirname(train_images[idx]).split("/")[-1]
         seg_name = os.path.join(seg_dir, image_class, image_name.replace("jpg", "png"))
         train_segs[idx] = seg_name
-    for idx in test_seg_idx:
+    # for idx in test_seg_idx:
+    for idx in range(test_img_count):
         image_name = os.path.basename(test_images[idx])
-        image_class = os.path.dirname(test_images[idx])
+        image_class = os.path.dirname(test_images[idx]).split("/")[-1]
         seg_name = os.path.join(seg_dir, image_class, image_name.replace("jpg", "png"))
         test_segs[idx] = seg_name 
     print("=======write=========")
     print("Num of train images: {}".format(train_img_count))
     print("Num of test images: {}".format(test_img_count))
     with open(train_file, "w") as f:
-        for img, seg in zip(train_images, train_segs):
-            f.write(img + "," + seg + "\n")
+        for img, lbl, seg in zip(train_images, train_labels, train_segs):
+            f.write(img + "," + lbl + "," + seg + "\n")
     f.close()
     with open(test_file, "w") as f:
-        for img, seg in zip(test_images, test_segs):
-            f.write(img + "," + seg + "\n")
+        for img, lbl, seg in zip(test_images, test_labels, test_segs):
+            f.write(img + "," + lbl + "," + seg + "\n")
     f.close() 
 
 
 if __name__ == "__main__":
-    image_dir="/Users/zongfan/Downloads/ECE549_project/CUB_200_2011/CUB_200_2011/images" 
-    seg_dir="/Users/zongfan/Downloads/ECE549_project/bird_seg"
-    save_dir="/Users/zongfan/Downloads/ECE549/ECE549_project/code/data"
+    image_dir="/home/zongfan2/Documents/ECE549_project/CUB_200_2011/CUB_200_2011/images" 
+    seg_dir="/home/zongfan2/Documents/ECE549_project/bird_seg"
+    save_dir="/home/zongfan2/Documents/ECE549_project/ECE549_project/data"
     save_name_prefix="bird"
     max_count=100
     select_class_name=None

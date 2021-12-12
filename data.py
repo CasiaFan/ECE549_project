@@ -15,6 +15,8 @@ from util import get_image_mask, dilute_mask, parse_mayo_mask_box
 
 
 BUSI_LABELS = ["normal", "malignant", "benign"] # BUSI dataset labels: https://bcdr.eu/information/downloads
+BIRD_LABELS =  ['003.Sooty_Albatross', '014.Indigo_Bunting', '067.Anna_Hummingbird', '102.Western_Wood_Pewee', '112.Great_Grey_Shrike', '122.Harris_Sparrow', '188.Pileated_Woodpecker', '194.Cactus_Wren'] 
+
 
 # TODO: add gaussian noise or white noise to mask 
 class BUSI_dataset(Dataset):
@@ -70,6 +72,62 @@ class BUSI_dataset(Dataset):
                 # mask = mask * label_id  # normal case is identical to backaground
         return {"image": img, "label": label_id, "mask": mask}
 
+class BIRD_dataset(Dataset):
+    def __init__(self, csv_file, transform=None, mask_transform=None, mask_dilute=0, image_size=224):
+        """
+        csv_file: csv file containing image file path and corresponding label
+        transform: transform for image
+        mask_transform: transformation for mask
+        mask_dilute: dilute mask with given distance in all directions
+        """
+        df = pd.read_csv(csv_file, sep=",", header=None)
+        df.columns = ["img", "label", "mask"]
+        self._img_files = df["img"].tolist()
+        self._img_labels = df["label"].tolist()
+        self._img_masks = df["mask"].tolist()
+        self._transform = transform
+        self._mask_transform = mask_transform
+        self._mask_dilute = mask_dilute
+        self._img_size = image_size
+
+    def __len__(self):
+        return len(self._img_files)
+
+    def __getitem__(self, idx):
+        image_name = self._img_files[idx]
+        assert os.path.exists(image_name), "Image file not found!"
+        # load image
+        img = Image.open(image_name)
+        img = img.convert("RGB")
+        label = self._img_labels[idx]
+        label_id = BIRD_LABELS.index(label)
+        #onehot_id = torch.nn.functional.one_hot(torch.Tensor(label_id), len(LABELS))
+        # get the identical random seed for both image and mask
+        seed = random.randint(0, 2147483647)
+        if self._transform:
+            # state = torch.get_rng_state()
+            random.seed(seed)
+            torch.manual_seed(seed)
+            img = self._transform(img)
+        # load mask
+        if self._img_masks[idx] != "none":
+            mask = get_image_mask(self._img_masks[idx], dataset="BIRD")
+            mask = dilute_mask(mask, dilute_distance=self._mask_dilute)
+            # assign class label
+            mask = Image.fromarray(mask)
+            if_mask = True
+            if self._mask_transform:
+                random.seed(seed)
+                torch.manual_seed(seed)
+                # torch.set_rng_state(state)
+                mask = self._mask_transform(mask)
+                mask = mask.type(torch.float)
+                # mask = mask * label_id  # normal case is identical to backaground
+        else:
+            mask = torch.zeros((1, self._img_size, self._img_size))
+            if_mask = False
+        return {"image": img, "label": label_id, "mask": mask, "if_mask": if_mask}
+    
 
 # input image width/height ratio
 BUSI_IMAGE_RATIO = 570/460
@@ -132,6 +190,9 @@ def prepare_data(config):
                                           mask=mask, 
                                           mask_transform=data_transforms[x+"_mask"], 
                                           mask_dilute=config.get("mask_dilute", 0)) for x in ["train", "test"]}
+    elif config["dataset"] == "BIRD":
+        image_datasets = {x: BIRD_dataset(config[x], transform=data_transforms[x+"_image"],
+                                          mask_transform=data_transforms[x+"_mask"]) for x in ["train", "test"]}
     else:
         print("Unknown dataset")
     # class_names = image_datasets["train"].classes 
@@ -139,47 +200,19 @@ def prepare_data(config):
     return image_datasets, data_sizes
 
 
-def generate_image_list(img_dir, save_dir, test_sample_size=40):
-    global BUSI_LABELS
-    image_list = glob.glob(img_dir+"/**/*.bmp", recursive=True)
-    train_sample_file = os.path.join(save_dir, "train_sample_test.txt")
-    test_sample_file = os.path.join(save_dir, "test_sample_test.txt")
-    random.shuffle(image_list)
-    train_f = open(train_sample_file, "w")
-    test_f = open(test_sample_file, "w")
-    counter = {x: 0 for x in BUSI_LABELS}
-    for img in image_list:
-        class_name = os.path.basename(os.path.dirname(img))
-        # ignore mask images
-        if re.search("mask", img):
-            continue
-        if counter[class_name] > test_sample_size:
-            write_f = train_f 
-        else:
-            write_f = test_f 
-        write_f.write("{},{}\n".format(img, class_name))
-        counter[class_name] += 1
-    train_f.close()
-    test_f.close()
-
-
 if __name__ == "__main__":
     import cv2
     from util import draw_segmentation_mask
-    image_dir = "/Users/zongfan/Projects/data/originals"
-    # image_dir = "/Users/zongfan/Projects/data/Dataset_BUSI_with_GT"
-    config = {"image_size": 224, "train": "train_sample.txt", "test": "test_sample.txt", "dataset": "BUSI", "mask": True}
+    config = {"image_size": 224, "train": "data/bird_train_part.txt", "test": "data/bird_test_part.txt", "dataset": "BIRD", "mask": True}
     ds, _ = prepare_data(config)
     batch_size = 2
-    dataloader = torch.utils.data.DataLoader(ds["train"], batch_size=batch_size)
+    dataloader = torch.utils.data.DataLoader(ds["test"], batch_size=batch_size)
     for data in dataloader:
         imgs = data['image']
         masks = data["mask"]
+        print(data["if_mask"])
         print(imgs.shape)
-        img_shape = imgs.shape
-        imgs = imgs.view(img_shape[0]*img_shape[1], img_shape[2], img_shape[3], img_shape[4])
-        print(imgs.shape)
-        draw_segmentation_mask(imgs, masks, "test/test.png")
+        draw_segmentation_mask(imgs, masks, masks, "test/test.png")
         break
         for i in range(len(imgs)):
             img = imgs[i].numpy()
@@ -194,5 +227,4 @@ if __name__ == "__main__":
             cv2.imshow("test", x)
             if cv2.waitKey(0) == ord("q"):
                 exit()
-    generate_image_list(image_dir, ".", test_sample_size=32)
 
