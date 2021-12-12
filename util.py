@@ -112,17 +112,16 @@ def parse_mayo_mask_box(patient_mask_file, box_anno_dir):
             box_coord[pid] = [0, 0, 854, 500]
     return box_coord
 
-def get_image_mask(image_name, image_size=None, dataset="BUSI", mask_coord=None):
+def get_image_mask(mask_name, image_size=None, dataset="BUSI", mask_coord=None):
     """
     Get image mask by giving image name
     dataset: the name of the dataset
     mask_coord: dict to save the mask box information
     """
-    image_dir = os.path.dirname(image_name)
-    image_base_name = os.path.basename(image_name).replace(".png", "")
     if dataset == "BUSI":
         # BUSI dataset has corresponding mask image file 
-        mask_name = os.path.join(image_dir, image_base_name+"_mask.png")
+        image_dir = os.path.dirname(mask_name)
+        image_base_name = os.path.basename(mask_name).replace("_mask.png", "")
         mask = cv2.imread(mask_name)
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
         # load all mask if exist
@@ -137,7 +136,7 @@ def get_image_mask(image_name, image_size=None, dataset="BUSI", mask_coord=None)
             else:
                 break
     elif dataset == "BIRD":
-        mask = cv2.imread(image_name)
+        mask = cv2.imread(mask_name)
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
     # mask = mask / 255
     # mask = np.expand_dims(mask, 0).astype(np.uint8) 
