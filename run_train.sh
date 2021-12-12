@@ -43,7 +43,7 @@ do
                         --num_classes=$num_classes \
                         --batch_size=16 \
                         --num_epochs=40 \
-                        --model_save_path=test/${feat_name}_${mask_name}_loss_${loss}_dataset_${dataset}_partial_${partial_label} \
+                        --model_save_path=test/${feat_name}_${mask_name}_loss_${loss}_dataset_${dataset}_partial_${partial_label}_blk_${num_blocks} \
                         --device="cuda:0" \
                         --pretrained_weights=None \
                         --lr=0.0001 \

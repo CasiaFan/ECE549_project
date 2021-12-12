@@ -44,18 +44,20 @@ class Eval():
         self.device=device
         self.dataset = dataset
         self.multi_gpu = multi_gpu
-        self.load_model()
+        self.num_blocks = num_blocks
         if dataset == "BIRD":
             self.label = BIRD_LABELS
         elif dataset == "BUSI":
             self.label = BUSI_LABELS
-        self.num_blocks = num_blocks
+        self.load_model()
 
     def load_model(self):
-        self.model = get_model(model_name=self.model_name, 
+        self.model = get_model(feat_name=self.feat_name, 
+                          mask_name=self.mask_name,
                           num_classes=self.num_classes, 
                           use_pretrained=True, 
-                          return_logit=False).to(self.device)
+                          return_logit=False,
+                          num_blocks=self.num_blocks).to(self.device)
         state_dict=torch.load(self.model_weights, map_location=torch.device(self.device))
         if self.multi_gpu:
             new_state_dict = OrderedDict()
@@ -78,7 +80,7 @@ class Eval():
         for idx in range(len(images)):
             image_tensor = read_image_tensor(images[idx], self.image_size)
             mask = get_image_mask(masks[idx], self.image_size, dataset=self.dataset)
-            # mask = mask / 255
+            mask = mask / 255
             mask = np.expand_dims(mask, 0)
             mask = torch.tensor(mask)
             real_mask_list.append(mask)
@@ -94,12 +96,12 @@ class Eval():
         else:
             if self.mask_name:
                 # interpolate mask to original size
-                outputs = torch.nn.functional.interpolate(outputs[1], size=(self.image_size, self.image_size), mode="bicubic")
-                pred_mask_tensor = (outputs>0.5).type(torch.int) 
+                prob = torch.nn.functional.interpolate(outputs[1], size=(self.image_size, self.image_size), mode="bicubic")
+                #pred_mask_tensor = (outputs>0.5).type(torch.int) 
             else:
-                _, pred_mask_tensor = torch.max(outputs, 1, keepdim=True)
+                _, prob = torch.max(outputs, 1, keepdim=True)
             # print(torch.max(pred_mask_tensor), torch.max(outputs), outputs)
-            pred_mask_tensor = (pred_mask_tensor>0).type(torch.int)
+            # pred_mask_tensor = (pred_mask_tensor>0).type(torch.int)
             # pred_mask_tensor = outputs[1].detach()
             # pred_mask_tensor = pred_mask_tensor[pred_mask_tensor > 0.5]
         if binary_mask:

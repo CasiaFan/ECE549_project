@@ -48,10 +48,10 @@ def draw_segmentation_mask(image_tensor, real_mask_tensor, pred_mask_tensor, sav
     """
     figure = np.array([])
     for i in range(len(image_tensor)):
-        img = image_tensor[i].numpy()
+        img = image_tensor[i].cpu().numpy()
         # restore
         img = (img + 1.) / 2. * 255
-        pred_mask = pred_mask_tensor[i].numpy()
+        pred_mask = pred_mask_tensor[i].cpu().numpy()
         pred_mask = pred_mask.repeat(3, axis=0)
         pred_mask = pred_mask * 255
         real_mask = real_mask_tensor[i].numpy()
