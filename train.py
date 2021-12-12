@@ -156,7 +156,7 @@ def run(feat_name,
     elif mask_loss == "l2":
         mask_criterion = nn.MSELoss()
     elif mask_loss == "CE":
-        mask_criterion = nn.BCEWithLogitsLoss()
+        mask_criterion = nn.BCELoss()
     if partial_label or partial_label == "True":
         train_file = "data/{}_train_part.txt".format(dataset.lower())     
     else:
@@ -179,10 +179,7 @@ def run(feat_name,
     # loss function
     if dataset == "BUSI":
         cls_weight = [2.0, 1.0, 1.0]
-    if num_classes == 2:
-        cls_criterion = nn.BCELoss().to(device)
-    else:
-        cls_criterion = nn.CrossEntropyLoss().to(device)
+    cls_criterion = nn.CrossEntropyLoss().to(device)
     # optimizer
     print("optimized parameter names")
     for name, param in model.named_parameters():
