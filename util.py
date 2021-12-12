@@ -56,6 +56,7 @@ def draw_segmentation_mask(image_tensor, real_mask_tensor, pred_mask_tensor, sav
         pred_mask = pred_mask * 255
         real_mask = real_mask_tensor[i].numpy()
         real_mask = real_mask.repeat(3, axis=0) 
+        real_mask = real_mask * 255
         img = np.concatenate([img, real_mask, pred_mask], axis=2)
         img_pair = np.transpose(img, (1, 2, 0)).astype(np.uint8)
         img_pair = cv2.cvtColor(img_pair, cv2.COLOR_RGB2BGR)
@@ -135,23 +136,9 @@ def get_image_mask(image_name, image_size=None, dataset="BUSI", mask_coord=None)
                 count += 1
             else:
                 break
-    elif dataset == "MAYO":
-        # MAYO dataset has bounding box[left x, left y, right x, right y] as rough mask information
-        # bbox_name = os.path.join(image_dir, "../annotate/"+image_base_name+".png_bbox.txt")
-        # with open(bbox_name, "r") as f:
-        #     box_str = f.readline().strip()
-        #     box_str_list = box_str.split(",")
-        #     box = [int(c) for c in box_str_list]
-        # assert mask_coord, "mask coord must be provided (using parse_mayo_mask_box)"
-        # pid = re.search("(\d+)_IM.*", image_base_name).group(1)
-        # box = mask_coord[pid]
-        box = mask_coord
-        image = cv2.imread(image_name)
-        img_h, img_w, _ = image.shape
-        # set mask region as 255
-        mask = np.zeros((img_h, img_w, 3))
-        mask[box[1]:box[3], box[0]:box[2]] = 255
-        # f.close()
+    elif dataset == "BIRD":
+        mask = cv2.imread(image_name)
+        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
     # mask = mask / 255
     # mask = np.expand_dims(mask, 0).astype(np.uint8) 
     # mask = np.expand_dims(mask, 0).transpose(0, 3, 1, 2)
