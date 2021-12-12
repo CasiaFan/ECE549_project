@@ -12,10 +12,10 @@ do
                --device="cuda:0" \
                --dataset="BUSI" \
                --multi_gpu=False \
-               --acc
+               accuracy
             #    image2mask \
             #    --seg_image_list="draw_mask.txt" \
             #    --mask_save_file="test/test_mask.png"
-    echo "Model processed: $model"
+    echo "Model processed: $full_path"
     echo "======================="
 done 
