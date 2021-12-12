@@ -1,7 +1,7 @@
 #!/bin/bash
 # matlab -nodisplay -nosplash -nodesktop -r "run('/home/xiaohui8/Desktop/tube_samples_dataset/GoogLeNet/googlenet_pretrain.m');exit;"|tail -n +11
 feat_name="resnet18"
-mask_name=None
+mask_name="mask_attention"
 loss="l1"
 dataset="BIRD"
 partial_label=False

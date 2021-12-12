@@ -44,6 +44,7 @@ def train(model,
                 model.eval()
             running_loss = 0
             running_corrects = 0
+            running_mask_loss = 0
             for data in dataloader[phase]:
                 inputs = data["image"].to(device)
                 labels = data["label"].to(device)
@@ -71,11 +72,12 @@ def train(model,
                         loss.backward()
                         optimizer.step()
                 running_loss += loss.item() * inputs.size(0)
+                running_mask_loss += mask_loss.item() * inputs.size(0)
                 running_corrects += np.sum(preds.data.cpu().numpy() == labels.data.cpu().numpy())
             datasize = len(dataloader[phase].dataset)
             epoch_loss = running_loss / datasize
             epoch_acc = running_corrects / datasize
-            print("{} Loss: {:.4f}, Acc{:.4f}".format(phase, epoch_loss, epoch_acc))
+            print("{} Cls Loss: {:.4f}, Acc{:.4f}, Mask Loss:{:.4f}".format(phase, epoch_loss, epoch_acc, running_mask_loss/ datasize))
             if phase == 'test' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 torch.save(model.state_dict(), best_test_model)
@@ -154,7 +156,7 @@ def run(feat_name,
     elif mask_loss == "l2":
         mask_criterion = nn.MSELoss()
     elif mask_loss == "CE":
-        mask_criterion = nn.CrossEntropyLoss()
+        mask_criterion = nn.BCEWithLogitsLoss()
     if partial_label:
         train_file = "data/{}_train_part.txt".format(dataset.lower())
         test_file = "data/{}_test_part.txt".format(dataset.lower())
