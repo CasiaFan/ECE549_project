@@ -30,14 +30,19 @@ do
                         else 
                             mask_weight=0.5
                         fi
+                        if [ "$dataset" = "BUSI" ]; then
+                            num_classes=2
+                        else 
+                            num_classes=8
+                        fi
                         python train.py --feat_name=$feat_name \
                         --mask_name=$mask_name \
                         --mask_loss=$loss \
                         --partial_label=$partial_label \
                         --image_size=224 \
-                        --num_classes=8 \
-                        --batch_size=24 \
-                        --num_epochs=30 \
+                        --num_classes=$num_classes \
+                        --batch_size=16 \
+                        --num_epochs=40 \
                         --model_save_path=test/${feat_name}_${mask_name}_loss_${loss}_dataset_${dataset}_partial_${partial_label} \
                         --device="cuda:0" \
                         --pretrained_weights=None \
