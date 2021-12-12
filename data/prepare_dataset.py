@@ -87,7 +87,7 @@ def filter_busi_dataset(image_dir, save_dir,
             random.shuffle(c_images)
             c_images = c_images[:max_count]
         images += c_images
-    c_images = [c_image.replace("_mask", "") for c_image in c_images]
+    images = [image.replace("_mask", "") for image in images]
     train_images, test_images = train_test_split(images, test_size=test_ratio, shuffle=True)
     # select 25% images to extract segmentation data
     train_img_count = len(train_images)
