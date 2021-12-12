@@ -72,7 +72,8 @@ def train(model,
                         loss.backward()
                         optimizer.step()
                 running_loss += loss.item() * inputs.size(0)
-                running_mask_loss += mask_loss.item() * inputs.size(0)
+                if if_mask:
+                    running_mask_loss += mask_loss.item() * inputs.size(0)
                 running_corrects += np.sum(preds.data.cpu().numpy() == labels.data.cpu().numpy())
             datasize = len(dataloader[phase].dataset)
             epoch_loss = running_loss / datasize
@@ -137,7 +138,9 @@ def run(feat_name,
         mask_weight=1.0,
         num_mask_blocks=4):
     os.makedirs(model_save_path, exist_ok=True)
-    # get model 
+    # get model
+    if mask_name == "None":
+        mask_name = None 
     model = get_model(feat_name=feat_name,
                       mask_name=mask_name,
                       num_classes=num_classes, 
@@ -157,12 +160,11 @@ def run(feat_name,
         mask_criterion = nn.MSELoss()
     elif mask_loss == "CE":
         mask_criterion = nn.BCEWithLogitsLoss()
-    if partial_label:
-        train_file = "data/{}_train_part.txt".format(dataset.lower())
-        test_file = "data/{}_test_part.txt".format(dataset.lower())
+    if partial_label or partial_label == "True":
+        train_file = "data/{}_train_part.txt".format(dataset.lower())     
     else:
         train_file = "data/{}_train_full.txt".format(dataset.lower())
-        test_file = "data/{}_train_full.txt".format(dataset.lower())
+    test_file = "data/{}_val.txt".format(dataset.lower())
     if num_gpus > 1:
         device_ids = list(range(num_gpus))
         # deploy model on multi-gpus

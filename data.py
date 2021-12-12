@@ -14,11 +14,10 @@ import random
 from util import get_image_mask, dilute_mask, parse_mayo_mask_box
 
 
-BUSI_LABELS = ["normal", "malignant", "benign"] # BUSI dataset labels: https://bcdr.eu/information/downloads
+BUSI_LABELS = ["malignant", "benign"] # BUSI dataset labels: https://bcdr.eu/information/downloads
 BIRD_LABELS =  ['003.Sooty_Albatross', '014.Indigo_Bunting', '067.Anna_Hummingbird', '102.Western_Wood_Pewee', '112.Great_Grey_Shrike', '122.Harris_Sparrow', '188.Pileated_Woodpecker', '194.Cactus_Wren'] 
 
 
-# TODO: add gaussian noise or white noise to mask 
 class BUSI_dataset(Dataset):
     def __init__(self, csv_file, transform=None, mask=False, mask_transform=None, mask_dilute=15):
         """

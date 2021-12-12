@@ -276,7 +276,8 @@ def get_model(feat_name,
             model.fc = nn.Linear(num_features, num_classes)
         elif feat_name == "deeplabv3":
             model = DeepLabV3(num_classes=num_classes, pretrained=use_pretrained)
-        print("unknown model name!")
+        else:
+            print("unknown model name!")
     else:
         model = ResNetMask(feat_name, mask_name, num_classes=num_classes, use_pretrained=use_pretrained, num_blocks=num_blocks, reduction=reduction, attention_weight=attention_weight, image_size=image_size)
     return model

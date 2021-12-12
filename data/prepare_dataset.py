@@ -97,8 +97,8 @@ def filter_busi_dataset(image_dir, save_dir,
     # test_seg_idx = random.sample(list(range(test_img_count)), int(test_img_count * seg_image_ratio))
     train_segs = ["none" for _ in range(train_img_count)]
     test_segs = ["none" for _ in range(test_img_count)]
-    for idx in train_seg_idx:
-    #for idx in range(train_img_count):
+    # for idx in train_seg_idx:
+    for idx in range(train_img_count):
         seg_name = train_images[idx].replace(".png", "_mask.png")
         train_segs[idx] = seg_name
     # for idx in test_seg_idx:
@@ -129,6 +129,7 @@ if __name__ == "__main__":
     #test_ratio=0.2
     #seg_image_ratio=0.25
     #filter_bird_dataset(image_dir, seg_dir, save_dir, save_name_prefix, max_count, select_class_name, select_class_count, test_ratio, seg_image_ratio)
+
     image_dir="/shared/anastasio5/COVID19/data/Dataset_BUSI_with_GT" 
     save_dir="/home/zongfan2/Documents/ECE549_project/ECE549_project/data"
     save_name_prefix="busi"
