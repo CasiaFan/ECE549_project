@@ -52,10 +52,12 @@ class Eval():
         self.num_blocks = num_blocks
 
     def load_model(self):
-        self.model = get_model(model_name=self.model_name, 
+        self.model = get_model(feat_name=self.feat_name, 
+                          mask_name=self.mask_name,
                           num_classes=self.num_classes, 
                           use_pretrained=True, 
-                          return_logit=False).to(self.device)
+                          return_logit=False,
+                          num_blocks=self.num_blocks).to(self.device)
         state_dict=torch.load(self.model_weights, map_location=torch.device(self.device))
         if self.multi_gpu:
             new_state_dict = OrderedDict()
