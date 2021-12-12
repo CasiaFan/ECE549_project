@@ -33,7 +33,7 @@ def train(model,
     # add log to tensorborad 
     if not os.path.exists(model_save_path):
         os.makedirs(model_save_path)
-    best_test_model = os.path.join(model_save_path, "bemask_name is not Nonest_model.pt") 
+    best_test_model = os.path.join(model_save_path, "best_model.pt") 
     for epoch in range(num_epochs):
         print("Epoch {}/{}".format(epoch+1, num_epochs))
         print("-" * 10)
