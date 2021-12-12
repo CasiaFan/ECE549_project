@@ -7,9 +7,12 @@ from scipy import stats
 from collections import OrderedDict
 from util import batch_iou, read_image_tensor, draw_segmentation_mask, get_image_mask, show_cam_on_image
 import pandas as pd
+from pytorch_grad_cam import GradCAM, ScoreCAM, GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM
+from pytorch_grad_cam.utils.image import show_cam_on_image
+import cv2
 
-
-BUSI_LABELS = ["normal", "malignant", "benign"]
+BUSI_LABELS = ["malignant", "benign"]
+BIRD_LABELS = ['003.Sooty_Albatross', '014.Indigo_Bunting', '067.Anna_Hummingbird', '102.Western_Wood_Pewee', '112.Great_Grey_Shrike', '122.Harris_Sparrow', '188.Pileated_Woodpecker', '194.Cactus_Wren'] 
 
 
 def mean_confidence_interval(x, confidence=0.95):
@@ -22,15 +25,19 @@ def mean_confidence_interval(x, confidence=0.95):
 
 
 class Eval():
-    def __init__(self, model_name, 
-                 num_classes, 
-                 model_weights,  
+    def __init__(self,
+                 feat_name, 
+                 model_weights, 
+                 mask_name=None, 
+                 num_classes=2, 
                  image_size=224, 
                  device="cpu",
-                 dataset="covidx",
-                 multi_gpu=False,):
+                 dataset="BIRD",
+                 multi_gpu=False,
+                 num_blocks=3):
         super(Eval, self).__init__()
-        self.model_name = model_name
+        self.feat_name = feat_name
+        self.mask_name = mask_name
         self.num_classes = num_classes
         self.model_weights = model_weights
         self.image_size=image_size
@@ -38,7 +45,12 @@ class Eval():
         self.dataset = dataset
         self.multi_gpu = multi_gpu
         self.load_model()
-    
+        if dataset == "BIRD":
+            self.label = BIRD_LABELS
+        elif dataset == "BUSI":
+            self.label = BUSI_LABELS
+        self.num_blocks = num_blocks
+
     def load_model(self):
         self.model = get_model(model_name=self.model_name, 
                           num_classes=self.num_classes, 
@@ -55,16 +67,17 @@ class Eval():
             self.model.load_state_dict(state_dict)
         self.model.eval()
     
-    def image2mask(self, seg_image_list=None, mask_save_file=None):
+    def image2mask(self, seg_image_list=None, mask_save_file=None, binary_mask=True):
         # load images in the seg_image_list if exists
         # draw mask instead of computing the IOU values or other metrics
         image_df = pd.read_csv(seg_image_list, header=None)
         images = image_df.iloc[:, 0]
+        masks = image_df.iloc[:, 2]
         image_list = []
         real_mask_list = []
-        for image in images:
-            image_tensor = read_image_tensor(image, self.image_size)
-            mask = get_image_mask(image, self.image_size, dataset="BUSI")
+        for idx in range(len(images)):
+            image_tensor = read_image_tensor(images[idx], self.image_size)
+            mask = get_image_mask(masks[idx], self.image_size, dataset=self.dataset)
             # mask = mask / 255
             mask = np.expand_dims(mask, 0)
             mask = torch.tensor(mask)
@@ -75,11 +88,11 @@ class Eval():
         image_tensor = image_tensor.squeeze(1)
         outputs = self.model(image_tensor)
         if self.num_classes == 1:
-            if self.model_name == "deeplabv3":
+            if self.feat_name == "deeplabv3":
                 prob = torch.nn.Sigmoid()(outputs)
             pred_mask_tensor = (prob>0.5).type(torch.int)
         else:
-            if self.model_name in ["resnet50_attention_mask", "resnet50_rasaee_mask"]:
+            if self.mask_name:
                 # interpolate mask to original size
                 outputs = torch.nn.functional.interpolate(outputs[1], size=(self.image_size, self.image_size), mode="bicubic")
                 pred_mask_tensor = (outputs>0.5).type(torch.int) 
@@ -89,20 +102,25 @@ class Eval():
             pred_mask_tensor = (pred_mask_tensor>0).type(torch.int)
             # pred_mask_tensor = outputs[1].detach()
             # pred_mask_tensor = pred_mask_tensor[pred_mask_tensor > 0.5]
-        draw_segmentation_mask(image_tensor, real_mask_tensor, pred_mask_tensor, mask_save_file) 
-        # img = image_tensor[0].numpy().transpose([1, 2, 0])
-        # mask = pred_mask_tensor[0].numpy()
-        # mask = mask / np.max(mask)
-        # show_cam_on_image(img, mask, mask_save_file, use_rgb=True)
+        if binary_mask:
+            pred_mask_tensor = (prob>0.5).type(torch.int)
+            draw_segmentation_mask(image_tensor, real_mask_tensor, pred_mask_tensor, mask_save_file) 
+        else:
+            pred_mask_tensor = prob[0] # use first image
+            img = (image_tensor[0]+1)/2 # scale to 0-1
+            img = img.numpy().transpose([1, 2, 0])
+            mask = pred_mask_tensor[0].cpu().detach().numpy()
+            # mask = mask / np.max(mask)
+            show_cam_on_image(img, mask, mask_save_file, use_rgb=False)
         
     def accuracy(self, test_file=None):
         if test_file is None:
-            if self.dataset == "BUSI":
-                train_file = "data/train_sample.txt"
-                test_file = "data/test_sample.txt"
-            elif self.dataset == "test":
-                train_file = "example/debug_sample_benign.txt"
-                test_file = "example/debug_sample_benign.txt"
+            if self.dataset == "BIRD":
+                train_file = "data/bird_train_part.txt"
+                test_file = "data/bird_test.txt"
+            elif self.dataset == "BUSI":
+                train_file = "data/busi_train_part.txt"
+                test_file = "data/busi_test.txt"
         else:
             train_file = test_file
         config = {"image_size": self.image_size, 
@@ -112,16 +130,7 @@ class Eval():
         image_datasets, data_sizes = prepare_data(config)
         dataloader = torch.utils.data.DataLoader(image_datasets["test"], shuffle=False) 
 
-        # result matrics:
-        #      __________________________________________
-        #      | gt \ pred | Normal | COVID | Pneumonia | 
-        #      ------------------------------------------
-        #      |  Normal   |        |       |           |
-        #      |  COVID    |        |       |           |
-        #      |  Pneumonia|        |       |           |
-        #      ------------------------------------------
-        if self.dataset == "BUSI":
-            result_matrics = np.zeros((3, 3))
+        result_matrics = np.zeros((self.num_classes, self.num_classes))
         with torch.no_grad():
             for data in dataloader:
                 inputs = data["image"].to(self.device)
@@ -133,16 +142,6 @@ class Eval():
                 pred = int(pred.item())
                 result_matrics[tag][pred] += 1
 
-        # if self.dataset == "BUSI":
-        #     result_matrics = np.zeros((3, 3))
-        #     with torch.no_grad():
-        #         for data in dataloader:
-        #             tag = data["label"].data.cpu().numpy()[0]
-        #             img = data["image"].to(self.device)
-        #             outputs = self.model(img)
-        #             _, pred = torch.max(outputs[0], 1)
-        #             pred = int(pred.cpu().numpy()[0])
-        #             result_matrics[tag][pred] += 1
             # precision: TP / (TP + FP)
             print("result matrics: ", result_matrics)
             # res_acc = [result_matrics[i, i]/np.sum(result_matrics[:,i]) for i in range(num_classes)]
@@ -168,50 +167,71 @@ class Eval():
                 res_speci.append(speci)
                 res_sens.append(sens)
                 f1_score.append(f1)
-        if self.dataset == "BUSI":
-            print('Precision: Normal: {0:.3f}, malignant: {1:.3f}, benign: {2:.3f}, avg: {3:.3f}'.format(res_acc[0],res_acc[1],res_acc[2], np.mean(res_acc)))
-            print('Sensitivity: Normal: {0:.3f}, malignant: {1:.3f}, benign: {2:.3f}, avg: {3:.3f}'.format(res_sens[0],res_sens[1],res_sens[2], np.mean(res_sens)))
-            print('Specificity: Normal: {0:.3f}, malignant: {1:.3f}, benign: {2:.3f}, avg: {3:.3f}'.format(res_speci[0],res_speci[1],res_speci[2], np.mean(res_speci)))
-            print('F1 score: Normal: {0:.3f}, malignant: {1:.3f}, benign: {2:.3f}, avg: {3:.3f}'.format(f1_score[0],f1_score[1],f1_score[2], np.mean(f1_score)))          
-        else:
-            print("unknown dataset") 
-    
+        print("Class labels: ", self.label)
+        print('Precision: ', res_acc, end=' ')
+        print("Mean acc: ", np.mean(res_acc))
+        print('Sensitivity: ', res_sens, end=' ')
+        print("Mean sensi: ",  np.mean(res_sens))
+        print('Specificity: ', res_speci, end=' ')
+        print("Mean speci: ", np.mean(res_speci))
+        print('F1 score: ', f1_score, end=' ')
+        print('Mean F1: ', np.mean(f1_score))          
+
     def iou(self, test_file=None):
         if test_file is None:
-            if self.dataset == "BUSI":
-                train_file = "data/train_sample.txt"
-                test_file = "data/test_sample.txt"
-            elif self.dataset == "test":
-                train_file = "example/debug_sample_benign.txt"
-                test_file = "example/debug_sample_benign.txt"
-                self.dataset = "BUSI"
+            if self.dataset == "BIRD":
+                train_file = "data/bird_train_part.txt"
+                test_file = "data/bird_test.txt"
+            elif self.dataset == "BUSI":
+                train_file = "data/busi_train_part.txt"
+                test_file = "data/busi_test.txt"
         else:
             train_file = test_file
         config = {"image_size": self.image_size, 
                 "train": train_file, 
                 "test": test_file, 
-                "dataset": self.dataset, 
-                "mask": True}
+                "dataset": self.dataset}
         image_datasets, data_sizes = prepare_data(config)
         dataloader = torch.utils.data.DataLoader(image_datasets["test"], shuffle=False) 
 
-        if self.dataset == "BUSI":
-            result_matrics = []
-            with torch.no_grad():
-                for data in dataloader:
-                    img = data["image"].to(self.device)
-                    outputs = self.model(img)
-                    mask = data["mask"].to(self.device)
-                    if self.num_classes == 1:
-                        prob = torch.nn.Sigmoid()(outputs)
-                        pred_mask_tensor = (prob>0.5).type(torch.int)
-                    else:
-                        _, pred_mask_tensor = torch.max(outputs, 1, keepdim=True)
-                        # print(torch.max(pred_mask_tensor), torch.max(outputs), outputs)
-                        pred_mask_tensor = (pred_mask_tensor>0).type(torch.int)
-                    iou = batch_iou(pred_mask_tensor, mask, 2)
-                    result_matrics.append(iou[0])
-            print("Segmentation IOU: ", np.mean(result_matrics))
+        result_matrics = []
+        with torch.no_grad():
+            for data in dataloader:
+                img = data["image"].to(self.device)
+                outputs = self.model(img)
+                mask = data["mask"].to(self.device)
+                if self.num_classes == 1:
+                    prob = torch.nn.Sigmoid()(outputs)
+                    pred_mask_tensor = (prob>0.5).type(torch.int)
+                else:
+                    _, pred_mask_tensor = torch.max(outputs[1], 1, keepdim=True)
+                    # print(torch.max(pred_mask_tensor), torch.max(outputs), outputs)
+                    pred_mask_tensor = (pred_mask_tensor>0).type(torch.int)
+                iou = batch_iou(pred_mask_tensor, mask, 2)
+                result_matrics.append(iou[0])
+        print("Segmentation IOU: ", np.mean(result_matrics))
+
+    def saliency(self, image_path, target_category=None, saliency_file=None, method="grad-cam"):
+        image_tensor = read_image_tensor(image_path, self.image_size)
+        try:
+            target_layers = [self.model.net[-1][-1]]
+        except:
+            target_layers = [self.model.net.net[-1][-1]]
+        if method == "grad-cam":
+            cam = GradCAM(model=self.model, target_layers=target_layers, use_cuda=False)
+        # target_category = [int(target_category)]
+        # You can also pass aug_smooth=True and eigen_smooth=True, to apply smoothing.
+        grayscale_cam = cam(input_tensor=image_tensor, target_category=target_category)
+
+        # In this example grayscale_cam has only one image in the batch:
+        grayscale_cam = grayscale_cam[0, :]
+        img = cv2.imread(image_path)
+        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = cv2.resize(img, (self.image_size, self.image_size))
+        img = img / 255
+        visualization = show_cam_on_image(img, grayscale_cam, use_rgb=False)
+        cv2.imwrite(saliency_file, visualization)
+        print("Draw saliency map with {} done! Save in {}".format(method, saliency_file))
 
 if __name__ == "__main__":
     fire.Fire(Eval)
