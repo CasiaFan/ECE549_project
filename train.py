@@ -183,7 +183,7 @@ def run(feat_name,
     if dataset == "BUSI":
         cls_weight = [2.0, 1.0, 1.0]
     if num_classes == 2:
-        cls_criterion = nn.BCEWithLogitsLoss().to(device)
+        cls_criterion = nn.BCELoss().to(device)
     else:
         cls_criterion = nn.CrossEntropyLoss().to(device)
     # optimizer
