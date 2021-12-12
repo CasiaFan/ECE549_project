@@ -53,7 +53,7 @@ class MaskDataset(Dataset):
         img = Image.open(image_name)
         img = img.convert("RGB")
         label = self._img_labels[idx]
-        label_id = self._labels.index(label)
+        label_id = self._label.index(label)
         #onehot_id = torch.nn.functional.one_hot(torch.Tensor(label_id), len(LABELS))
         # get the identical random seed for both image and mask
         seed = random.randint(0, 2147483647)
