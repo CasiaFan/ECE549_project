@@ -5,7 +5,7 @@ for model in ${StringArray[@]};
 do
     full_path="$model_dir/$model"
     python eval.py --feat_name="resnet18" \
-               --mask_name="mask_rasaee"
+               --mask_name="mask_rasaee" \
                --num_classes=2 \
                --model_weights=$full_path \
                --image_size=224 \
