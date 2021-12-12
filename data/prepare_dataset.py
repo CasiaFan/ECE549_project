@@ -98,8 +98,8 @@ def filter_busi_dataset(image_dir, save_dir,
     # test_seg_idx = random.sample(list(range(test_img_count)), int(test_img_count * seg_image_ratio))
     train_segs = ["none" for _ in range(train_img_count)]
     test_segs = ["none" for _ in range(test_img_count)]
-    # for idx in train_seg_idx:
-    for idx in range(train_img_count):
+    for idx in train_seg_idx:
+    #for idx in range(train_img_count):
         seg_name = train_images[idx].replace(".png", "_mask.png")
         train_segs[idx] = seg_name
     # for idx in test_seg_idx:
