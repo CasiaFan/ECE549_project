@@ -142,7 +142,10 @@ class Eval():
                 labels = data["label"].to(self.device)
                 tag = labels.cpu().numpy()[0]
                 outputs = self.model(inputs)
-                _, pred = torch.max(outputs[0], 1)
+                if self.return_mask:
+                    _, pred = torch.max(outputs[0], 1)
+                else:
+                    _, pred = torch.max(outputs, 1)
                 # score = outputs[0].numpy()
                 pred = int(pred.item())
                 result_matrics[tag][pred] += 1

@@ -1,21 +1,33 @@
 #!/bin/bash
-model_dir=""
-declare -a StringArray=("best_model.pt")
-for model in ${StringArray[@]};
-do
-    full_path="$model_dir/$model"
-    python eval.py --feat_name="resnet18" \
-               --mask_name="mask_rasaee" \
-               --num_classes=2 \
-               --model_weights=$full_path \
-               --image_size=224 \
-               --device="cuda:0" \
-               --dataset="BUSI" \
-               --multi_gpu=False \
-               accuracy
-            #    image2mask \
-            #    --seg_image_list="draw_mask.txt" \
-            #    --mask_save_file="test/test_mask.png"
-    echo "Model processed: $full_path"
-    echo "======================="
-done 
+model_base_dir="test"
+for model in $model_base_dir/*; do
+    model_path="$model/best_model.pt"
+    info=($(echo $model_path | tr "_" "\n"))
+    feat_name=$(basename ${info[0]})
+    mask_name=${info[1]}
+    if [ $mask_name = "mask" ]; then
+        mask_name="${info[1]}_${info[2]}"
+        dataset=${info[6]}
+    else
+        dataset=${info[5]}
+    fi
+    if [ $dataset = "BUSI" ];then
+        num_class=2
+    else
+        num_class=8
+    fi  
+    python eval.py --feat_name=$feat_name \
+                --mask_name=$mask_name \
+                --num_classes=$num_class \
+                --model_weights=$model_path \
+                --image_size=224 \
+                --device="cuda:0" \
+                --dataset=$dataset \
+                --multi_gpu=False \
+                accuracy
+                #    image2mask \
+                #    --seg_image_list="draw_mask.txt" \
+                #    --mask_save_file="test/test_mask.png"
+        echo "Model processed: $model_path"
+        echo "======================="
+done
