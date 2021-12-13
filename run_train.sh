@@ -1,11 +1,10 @@
 #!/bin/bash
-# matlab -nodisplay -nosplash -nodesktop -r "run('/home/xiaohui8/Desktop/tube_samples_dataset/GoogLeNet/googlenet_pretrain.m');exit;"|tail -n +11
 declare -a NET=("resnet18" "resnet34" "resnet50")
-declare -a MASK=("None" "mask_rasaee")
+declare -a MASK=(None)
 declare -a LOSS=("l1" "l2" "CE")
-declare -a DS=("BIRD" "BUSI")
+declare -a DS=("BUSI")
 declare -a PL=(True False)
-declare -a BLK=(3 4)
+declare -a BLK=(4)
 # feat_name="resnet18"
 # mask_name=None
 # loss="l1"
@@ -43,7 +42,7 @@ do
                         --num_classes=$num_classes \
                         --batch_size=16 \
                         --num_epochs=40 \
-                        --model_save_path=test/${feat_name}_${mask_name}_loss_${loss}_dataset_${dataset}_partial_${partial_label} \
+                        --model_save_path=test/${feat_name}_${mask_name}_loss_${loss}_dataset_${dataset}_partial_${partial_label}_blk_${num_blocks} \
                         --device="cuda:0" \
                         --pretrained_weights=None \
                         --lr=0.0001 \

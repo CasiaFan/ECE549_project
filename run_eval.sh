@@ -19,7 +19,11 @@ for model in $model_base_dir/*; do
                 num_class=2
             else
                 num_class=8
-            fi  
+            fi 
+            echo $feat_name 
+            echo $mask_name
+            echo $num_class
+            echo $dataset 
             python eval.py --feat_name=$feat_name \
                         --mask_name=$mask_name \
                         --num_classes=$num_class \
