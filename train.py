@@ -66,8 +66,8 @@ def train(model,
                         loss = cls_loss + mask_loss * mask_weight
                         _, preds = torch.max(outputs[0], 1)
                     else:
-                        loss = cls_criterion(outputs[0], labels)
-                        _, preds = torch.max(outputs[0], 1)
+                        loss = cls_criterion(outputs, labels)
+                        _, preds = torch.max(outputs, 1)
                     if phase == "train":
                         loss.backward()
                         optimizer.step()

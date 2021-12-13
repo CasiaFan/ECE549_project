@@ -34,6 +34,7 @@ class Eval():
                  device="cpu",
                  dataset="BIRD",
                  multi_gpu=False,
+                 return_mask=True,
                  num_blocks=3):
         super(Eval, self).__init__()
         self.feat_name = feat_name
@@ -45,11 +46,12 @@ class Eval():
         self.dataset = dataset
         self.multi_gpu = multi_gpu
         self.num_blocks = num_blocks
+        self.return_mask = return_mask
+        self.load_model()
         if dataset == "BIRD":
             self.label = BIRD_LABELS
         elif dataset == "BUSI":
             self.label = BUSI_LABELS
-        self.load_model()
 
     def load_model(self):
         self.model = get_model(feat_name=self.feat_name, 
@@ -57,7 +59,8 @@ class Eval():
                           num_classes=self.num_classes, 
                           use_pretrained=True, 
                           return_logit=False,
-                          num_blocks=self.num_blocks).to(self.device)
+                          num_blocks=self.num_blocks,
+                          return_mask=self.return_mask).to(self.device)
         state_dict=torch.load(self.model_weights, map_location=torch.device(self.device))
         if self.multi_gpu:
             new_state_dict = OrderedDict()
@@ -97,7 +100,7 @@ class Eval():
             if self.mask_name:
                 # interpolate mask to original size
                 prob = torch.nn.functional.interpolate(outputs[1], size=(self.image_size, self.image_size), mode="bicubic")
-                #pred_mask_tensor = (outputs>0.5).type(torch.int) 
+                # prob = (outputs>0.5).type(torch.int) 
             else:
                 _, prob = torch.max(outputs, 1, keepdim=True)
             # print(torch.max(pred_mask_tensor), torch.max(outputs), outputs)
@@ -139,7 +142,10 @@ class Eval():
                 labels = data["label"].to(self.device)
                 tag = labels.cpu().numpy()[0]
                 outputs = self.model(inputs)
-                _, pred = torch.max(outputs[0], 1)
+                if self.return_mask:
+                    _, pred = torch.max(outputs[0], 1)
+                else:
+                    _, pred = torch.max(outputs, 1)
                 # score = outputs[0].numpy()
                 pred = int(pred.item())
                 result_matrics[tag][pred] += 1
@@ -216,9 +222,9 @@ class Eval():
     def saliency(self, image_path, target_category=None, saliency_file=None, method="grad-cam"):
         image_tensor = read_image_tensor(image_path, self.image_size)
         try:
-            target_layers = [self.model.net[-1][-1]]
-        except:
             target_layers = [self.model.net.net[-1][-1]]
+        except:
+            target_layers = [self.model.net[-1][-1]]
         if method == "grad-cam":
             cam = GradCAM(model=self.model, target_layers=target_layers, use_cuda=False)
         # target_category = [int(target_category)]

@@ -42,12 +42,12 @@ class LogitResnet(nn.Module):
         l = torch.flatten(x, 1)
         x = self.fc(l)
         if self.return_logit and self.return_feature:
-            return [x, f, l]
+            return x, f, l
         if self.return_logit:
-            return [x, l]
+            return x, l
         if self.return_feature:
-            return [x, f]
-        return [x]
+            return x, f
+        return x
 
 class LogitDensenet(nn.Module):
     """return network logit"""
@@ -72,12 +72,12 @@ class LogitDensenet(nn.Module):
         l = torch.flatten(x, 1)
         x = self.fc(l)
         if self.return_logit and self.return_feature:
-            return [x, f, l]
+            return x, f, l
         if self.return_feature:
-            return [x, f]
+            return x, f
         if self.return_logit:
-            return [x, l]
-        return [x]
+            return x, l
+        return x
 
 
 class AttentionBlock(nn.Module):
@@ -209,7 +209,8 @@ class ResNetMask(nn.Module):
                  num_blocks=3,
                  reduction='mean', 
                  attention_weight=0.5,
-                 image_size=448):
+                 image_size=448,
+                 return_mask=True):
         super(ResNetMask, self).__init__()
         self.attention_weight = attention_weight
         self.net = LogitResnet(feat_name, num_classes, return_logit=False, return_feature=True, use_pretrained=use_pretrained)
@@ -227,6 +228,7 @@ class ResNetMask(nn.Module):
         elif mask_name == "mask_rasaee":
             self.mask_module = RasaeeMaskHead(image_size, num_blocks=num_blocks, init_channels=init_channels)
         self.c = ClassificationHead(init_channels, num_classes)
+        self.return_mask = return_mask
 
     def forward(self, x):
         _, x = self.net(x)
@@ -235,7 +237,10 @@ class ResNetMask(nn.Module):
             # x = x + self.attention_weight * mask * x
             x = x + x * mask
         x = self.c(x)
-        return x, mask
+        if self.return_mask:
+            return x, mask
+        else:
+            return x
 
 
 def get_model(feat_name, 
@@ -248,6 +253,7 @@ def get_model(feat_name,
               attention_weight=0.25,
               image_size=448,
               num_blocks=3,
+              return_mask=True,
               **kwargs):
     if mask_name is None:
         if feat_name in ["resnet50", "resnet34", "resnet18"]:
@@ -279,7 +285,7 @@ def get_model(feat_name,
         else:
             print("unknown model name!")
     else:
-        model = ResNetMask(feat_name, mask_name, num_classes=num_classes, use_pretrained=use_pretrained, num_blocks=num_blocks, reduction=reduction, attention_weight=attention_weight, image_size=image_size)
+        model = ResNetMask(feat_name, mask_name, num_classes=num_classes, use_pretrained=use_pretrained, num_blocks=num_blocks, reduction=reduction, attention_weight=attention_weight, image_size=image_size, return_mask=return_mask)
     return model
 
 # def decoder()
