@@ -1,0 +1,10 @@
+torch
+torchvision
+numpy 
+sklearn
+Pillow
+pandas
+opencv
+fire
+scipy
+grad-cam
