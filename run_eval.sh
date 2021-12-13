@@ -1,26 +1,35 @@
 #!/bin/bash
-model_dir="test/resnet18_mask_rasaee_loss_CE_dataset_BUSI_partial_False"
-declare -a StringArray=("best_model.pt")
-for model in ${StringArray[@]};
-do
-    full_path="$model_dir/$model"
-    python eval.py --feat_name="resnet18" \
-               --mask_name="mask_rasaee" \
-               --num_classes=2 \
-               --model_weights=$full_path \
-               --image_size=224 \
-               --device="cuda:0" \
-               --dataset="BUSI" \
-               --multi_gpu=False \
-               --num_blocks=4 \
-               --return_mask=True \
-               image2mask \
-               --seg_image_list="test/draw_mask.txt" \
-               --mask_save_file="test/test_mask.png"
-               #accuracy
-               #saliency \
-               #--image_path="/shared/anastasio5/COVID19/data/Dataset_BUSI_with_GT/malignant/malignant (11).png" \
-               #--saliency_file="test/test_saliency.png"
-    echo "Model processed: $full_path"
-    echo "======================="
-done 
+model_base_dir="test"
+for model in $model_base_dir/*; do
+    model_path="$model/best_model.pt"
+    info=($(echo $model_path | tr "_" "\n"))
+    feat_name=$(basename ${info[0]})
+    mask_name=${info[1]}
+    echo $feat_name
+    if [ $mask_name = "mask" ]; then
+        mask_name="${info[1]}_${info[2]}"
+        dataset=${info[6]}
+    else
+        dataset=${info[5]}
+    fi
+    if [ $dataset = "BUSI" ]; then
+        num_class=2
+    else
+        num_class=8
+    fi  
+    echo "$num_class"
+    python eval.py --feat_name=$feat_name \
+                --mask_name=$mask_name \
+                --num_classes=$num_class \
+                --model_weights=$model_path \
+                --image_size=224 \
+                --device="cuda:0" \
+                --dataset=$dataset \
+                --multi_gpu=False \
+                accuracy
+                #    image2mask \
+                #    --seg_image_list="draw_mask.txt" \
+                #    --mask_save_file="test/test_mask.png"
+        echo "Model processed: $model_path"
+        echo "======================="
+done
