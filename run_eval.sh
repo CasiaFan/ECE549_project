@@ -28,8 +28,8 @@ for model in $model_base_dir/*; do
                         --device="cuda:0" \
                         --dataset=$dataset \
                         --multi_gpu=False \
-                        --num_blocsk=4 \
-                        --return_mask=$return_mask
+                        --num_blocks=4 \
+                        --return_mask=$return_mask \
                         accuracy
                         #    image2mask \
                         #    --seg_image_list="draw_mask.txt" \
