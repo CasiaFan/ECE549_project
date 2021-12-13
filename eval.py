@@ -35,7 +35,7 @@ class Eval():
                  dataset="BIRD",
                  multi_gpu=False,
                  return_mask=True,
-                 num_blocks=3):
+                 num_blocks=4):
         super(Eval, self).__init__()
         self.feat_name = feat_name
         self.mask_name = mask_name

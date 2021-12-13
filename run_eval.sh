@@ -10,8 +10,10 @@ for model in $model_base_dir/*; do
             if [ $mask_name = "mask" ]; then
                 mask_name="${info[1]}_${info[2]}"
                 dataset=${info[6]}
+                return_mask=True
             else
                 dataset=${info[5]}
+                return_mask=False
             fi
             if [ $dataset = "BUSI" ];then
                 num_class=2
@@ -31,6 +33,7 @@ for model in $model_base_dir/*; do
                         --dataset=$dataset \
                         --multi_gpu=False \
                         --num_blocks=4 \
+                        --return_mask=$return_mask \
                         accuracy
                         #    image2mask \
                         #    --seg_image_list="draw_mask.txt" \
