@@ -1,8 +1,8 @@
 #!/bin/bash
-model_path="/home/zongfan2/Documents/ECE549_project/ECE549_project/test/resnet50_mask_rasaee_loss_CE_dataset_BIRD_partial_True/best_model"
+model_path="/home/zongfan2/Documents/ECE549_project/ECE549_project/test/resnet50_mask_rasaee_loss_CE_dataset_BIRD_partial_True/best_model.pt"
 feat_name="resnet50"
-mask_name=None
-dataset="BUSI"
+mask_name="mask_rasaee"
+dataset="BIRD"
 if [ "$dataset" = "BUSI" ]; then
     num_class=2
 else
@@ -17,7 +17,7 @@ python eval.py --feat_name=$feat_name \
                         --dataset=$dataset \
                         --multi_gpu=False \
                         --num_blocks=4 \
-                        --return_mask=False \
+                        --return_mask=True \
                            image2mask \
-                        --seg_image_list="draw_busi.txt" \
+                        --seg_image_list="test/draw_busi.txt" \
                         --mask_save_file="test/busi_mask.png"
